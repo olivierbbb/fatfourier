@@ -13,35 +13,35 @@ BIN_DIR = bin
 
 .PHONY: all clean
 
-all: $(BIN_DIR)/mmftw
-#$(BIN_DIR)/mmftw_omp $(BIN_DIR)/mmftw_threaded_2 $(BIN_DIR)/mmftw_threaded_4 \
-#$(BIN_DIR)/mmftw_threaded_auto $(BIN_DIR)/mmftw_fftw
+all: $(BIN_DIR)/fatfourier \
+$(BIN_DIR)/fatfourier_omp $(BIN_DIR)/fatfourier_threaded_2 $(BIN_DIR)/fatfourier_threaded_4 \
+$(BIN_DIR)/fatfourier_threaded_auto $(BIN_DIR)/fatfourier_fftw
 
-$(BIN_DIR)/mmftw: $(HEADER_FILES) $(SRC_FILES)
+$(BIN_DIR)/fatfourier: $(HEADER_FILES) $(SRC_FILES)
 	@mkdir -p $(@D)
 	$(CXX) $(CXXFLAGS) $(SRC_FILES) -o $@ $(LDFLAGS)
 
-$(BIN_DIR)/mmftw_omp: $(HEADER_FILES) $(SRC_FILES)
+$(BIN_DIR)/fatfourier_omp: $(HEADER_FILES) $(SRC_FILES)
 	@mkdir -p $(@D)
 	$(CXX) $(CXXFLAGS) -DOPENMP $(SRC_FILES) -o $@ $(LDFLAGS) -fopenmp
 
-$(BIN_DIR)/mmftw_threaded_2: $(HEADER_FILES) $(SRC_FILES)
+$(BIN_DIR)/fatfourier_threaded_2: $(HEADER_FILES) $(SRC_FILES)
 	@mkdir -p $(@D)
 	$(CXX) $(CXXFLAGS) -DTHREADED -DTHREADS_COUNT=2 -pthread $(SRC_FILES) -o $@ $(LDFLAGS)
 
-$(BIN_DIR)/mmftw_threaded_4: $(HEADER_FILES) $(SRC_FILES)
+$(BIN_DIR)/fatfourier_threaded_4: $(HEADER_FILES) $(SRC_FILES)
 	@mkdir -p $(@D)
 	$(CXX) $(CXXFLAGS) -DTHREADED -DTHREADS_COUNT=4 -pthread $(SRC_FILES) -o $@ $(LDFLAGS)
 
-$(BIN_DIR)/mmftw_threaded_8: $(HEADER_FILES) $(SRC_FILES)
+$(BIN_DIR)/fatfourier_threaded_8: $(HEADER_FILES) $(SRC_FILES)
 	@mkdir -p $(@D)
 	$(CXX) $(CXXFLAGS) -DTHREADED -DTHREADS_COUNT=4 -pthread $(SRC_FILES) -o $@ $(LDFLAGS)
 
-$(BIN_DIR)/mmftw_threaded_auto: $(HEADER_FILES) $(SRC_FILES)
+$(BIN_DIR)/fatfourier_threaded_auto: $(HEADER_FILES) $(SRC_FILES)
 	@mkdir -p $(@D)
 	$(CXX) $(CXXFLAGS) -DTHREADED -pthread $(SRC_FILES) -o $@ $(LDFLAGS) 
 
-$(BIN_DIR)/mmftw_fftw: $(HEADER_FILES) $(SRC_FILES)
+$(BIN_DIR)/fatfourier_fftw: $(HEADER_FILES) $(SRC_FILES)
 	@mkdir -p $(@D)
 	$(CXX) $(CXXFLAGS) -DFFTW_SEQ $(SRC_FILES) -o $@ $(LDFLAGS)
 
