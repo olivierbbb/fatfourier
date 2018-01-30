@@ -10,17 +10,20 @@
 
 class FFT {
 public:
-    FFT(double* buffer, uint64_t buffer_size);
+    FFT(double* in_buffer, double* out_buffer, uint64_t buffer_size);
     ~FFT();
     void compute();
 
 private:
-    /** Pointer to buffer as array of real values */
-    double* reals_;
-    uint64_t reals_count_;
-    /** Pointer to same buffer as array of complex values */
+    /**Input and output buffers as arrays of real values */
+    double* in_buffer_;
+    double* out_buffer_;
+    uint64_t buffer_size_;
+
+    /** Pointer to input buffer as array of complex values */
     std::complex<double>* complexes_;
     uint64_t complexes_count_;
+    
 
     /**
      * Twiddle factors lookup tabble

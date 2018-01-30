@@ -34,15 +34,16 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    double* buffer = new double[buffer_size];
+    double* in_buffer = new double[buffer_size];
+    double* out_buffer = new double[buffer_size];
 
-    wave.read_samples(buffer, buffer_size);
+    wave.read_samples(in_buffer, buffer_size);
 
     // Compute values with fftw in order to check our own results later
     #ifdef CHECK_WITH_FFTW
         // TODO use fftw malloc
         double* check_buffer = new double[buffer_size];
-        copy(buffer, buffer + buffer_size, check_buffer);
+        copy(in_buffer, in_buffer + buffer_size, check_buffer);
         
         fftw_plan check_plan = fftw_plan_r2r_1d(
             buffer_size,
@@ -62,14 +63,14 @@ int main(int argc, char *argv[]) {
     #ifdef FFTW_SEQ
         fftw_plan plan = fftw_plan_r2r_1d(
             buffer_size,
-            buffer,
-            buffer,
+            in_buffer,
+            out_buffer,
             FFTW_R2HC,
             FFTW_ESTIMATE
         );
         fftw_execute(plan);
     #else
-        FFT fft(buffer, buffer_size);
+        FFT fft(in_buffer, out_buffer, buffer_size);
         fft.compute();
     #endif
 
@@ -82,7 +83,7 @@ int main(int argc, char *argv[]) {
         uint64_t freqs_count = buffer_size / 2 + 1;
         for (uint64_t i = 0; i < freqs_count; i++) {
             int precision = 100000;
-            double value = precision * trunc(buffer[i]) / precision;
+            double value = precision * trunc(out_buffer[i]) / precision;
             double fftw_value = precision * trunc(check_buffer[i]) / precision;
             if (value != fftw_value) {
                 cerr << "Wrong result" << value << fftw_value << endl;
@@ -94,7 +95,8 @@ int main(int argc, char *argv[]) {
     #ifdef FFTW_SEQ
         fftw_destroy_plan(plan);
     #endif
-    delete[] buffer;
+    delete[] in_buffer;
+    delete[] out_buffer;
 
     #ifdef CHECK_WITH_FFTW
         fftw_destroy_plan(check_plan);

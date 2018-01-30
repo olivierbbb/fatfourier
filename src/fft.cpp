@@ -8,11 +8,12 @@
 
 using namespace std;
 
-FFT::FFT(double* buffer, uint64_t buffer_size) :
-    reals_(buffer),
-    reals_count_(buffer_size),
+FFT::FFT(double* in_buffer, double* out_buffer, uint64_t buffer_size) :
+    in_buffer_(in_buffer),
+    out_buffer_(out_buffer),
+    buffer_size_(buffer_size),
     // cast real array to half-size complex array (they are binary-compatible)
-    complexes_(reinterpret_cast<complex<double>*>(buffer)),
+    complexes_(reinterpret_cast<complex<double>*>(in_buffer)),
     complexes_count_(buffer_size / 2)
 {
     assert(IS_POWER_OF_2(buffer_size));
@@ -65,21 +66,21 @@ void FFT::compute() {
     odd = -1i * (complexes_[0] - conj(complexes_[0]));
     twiddle = polar(1.0, -2.0 * M_PI);
     result = 0.5 * (even + twiddle * odd);
-    reals_[0] = result.real();
+    out_buffer_[0] = result.real();
 
     // k == 1 .. count / 2 - 1
-    for (uint64_t k = 1; k < reals_count_ / 2; k++) {
+    for (uint64_t k = 1; k < buffer_size_ / 2; k++) {
         even = complexes_[k] + conj(complexes_[complexes_count_ - k]);
         odd = -1i * (complexes_[k] - conj(complexes_[complexes_count_ - k]));
         twiddle = twiddles_[k];
 
         result = 0.5 * (even + twiddle * odd);
-        reals_[k] = result.real();
+        out_buffer_[k] = result.real();
     }
 
     // k == count / 2
     result = 0.5 * (complexes_[0] + conj(complexes_[0]) + 1i * (complexes_[0] - conj(complexes_[0])));
-    reals_[reals_count_ / 2] = result.real();
+    out_buffer_[buffer_size_ / 2] = result.real();
 }
 
 /**
