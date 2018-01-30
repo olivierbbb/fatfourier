@@ -23,7 +23,7 @@ $(BIN_DIR)/fatfourier: $(HEADER_FILES) $(SRC_FILES)
 
 $(BIN_DIR)/fatfourier_omp: $(HEADER_FILES) $(SRC_FILES)
 	@mkdir -p $(@D)
-	$(CXX) $(CXXFLAGS) -DOPENMP $(SRC_FILES) -o $@ $(LDFLAGS) -fopenmp
+	$(CXX) $(CXXFLAGS) -DOMP $(SRC_FILES) -o $@ $(LDFLAGS) -fopenmp
 
 $(BIN_DIR)/fatfourier_threaded_2: $(HEADER_FILES) $(SRC_FILES)
 	@mkdir -p $(@D)

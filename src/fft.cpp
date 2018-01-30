@@ -1,9 +1,16 @@
 #include <cassert>
-#if defined (OMP)
+#if defined(OMP) || defined(THREADED)
+    #include <stack>
+    #include <vector>
+    #include <functional>
+#endif
+#ifdef OMP
     #include <omp.h>
+#elif defined(THREADED)
+    #include <thread>
 #endif
 #include "fft.hpp"
-#include <iostream>
+
 #define IS_POWER_OF_2(x) (((x) & ((x) - 1)) == 0)
 
 using namespace std;
@@ -18,22 +25,33 @@ FFT::FFT(double* in_buffer, double* out_buffer, uint64_t buffer_size) :
 {
     assert(IS_POWER_OF_2(buffer_size));
 
-    twiddles_ = new complex<double>[buffer_size / 2];
-    for (uint64_t k = 0; k < buffer_size / 2; k++) {
-        twiddles_[k] = polar(1.0, -2.0 * M_PI * k / buffer_size);
-    }
-
-    #ifdef OMP
-        omp_set_num_threads(2);
-    #elif defined THREAD
+    #ifdef THREADED
         #ifdef THREADS_COUNT
+            assert(IS_POWER_OF_2(THREADS_COUNT));
             threads_count_ = THREADS_COUNT;
         #else
             threads_count_ = thread::hardware_concurrency();
             threads_count_ = pow(2, log2(threads_count_));
         #endif
-        assert(IS_POWER_OF_2(threads_count_));
+    #elif defined (OMP)
+        #ifdef THREADS_COUNT
+            assert(IS_POWER_OF_2(THREADS_COUNT));
+            threads_count_ = THREADS_COUNT;
+        #else
+            threads_count_ = omp_get_num_procs();
+            threads_count_ = pow(2, log2(threads_count_));
+        #endif
+        omp_set_num_threads(threads_count_);
     #endif
+
+    twiddles_ = new complex<double>[buffer_size / 2];
+
+    #ifdef OMP
+    #pragma omp parallel for
+    #endif
+    for (uint64_t k = 0; k < buffer_size / 2; k++) {
+        twiddles_[k] = polar(1.0, -2.0 * M_PI * k / buffer_size);
+    }
 }
 
 FFT::~FFT() {
@@ -50,10 +68,8 @@ FFT::~FFT() {
 void FFT::compute() {
     bit_reverse_permute_buffer_();
 
-    #if defined(OMP)
-        omp_fft_(complexes_, complexes_count_);
-    #elif defined(THREAD)
-        threaded_fft_(complexes_, complexes_count_);
+    #if defined(OMP) || defined(THREADED)
+        parallel_fft_();
     #else
         fft_(complexes_, complexes_count_);
     #endif
@@ -69,6 +85,7 @@ void FFT::compute() {
     out_buffer_[0] = result.real();
 
     // k == 1 .. count / 2 - 1
+    // TODO parallel for?
     for (uint64_t k = 1; k < buffer_size_ / 2; k++) {
         even = complexes_[k] + conj(complexes_[complexes_count_ - k]);
         odd = -1i * (complexes_[k] - conj(complexes_[complexes_count_ - k]));
@@ -136,6 +153,10 @@ void FFT::bit_reverse_permute_buffer_() {
     complex<double> swap;
     uint64_t reversed_k;
     const unsigned int bit_length = log2(complexes_count_);
+
+    #ifdef OMP
+    //TODO why not ? #pragma omp parallel for
+    #endif
     for (uint64_t k = 0; k < complexes_count_; k++) {
         reversed_k = reverse_bits(k, bit_length);
         if (reversed_k > k) { // dont swap twice
@@ -146,53 +167,50 @@ void FFT::bit_reverse_permute_buffer_() {
     }
 }
 
-#ifdef OMP
+#if defined(OMP) || defined(THREADED)
 
-void FFT::omp_fft_(complex<double>* values, uint64_t count, unsigned int depth) {
-    assert(IS_POWER_OF_2(count));
+void FFT::parallel_fft_() {    
+    #ifdef OMP
+        vector<function<void()>> parallel_ffts;
+    #else
+        vector<thread> parallel_ffts;
+    #endif
 
-    if (count < 2) {
-        return;
-    }
+    stack<tuple<complex<double>*, uint64_t, unsigned int>> async_ffts;
+    vector<function<void()>> async_butterflies;
+    async_ffts.emplace(complexes_, complexes_count_, 1);
 
-    const uint64_t half_count = count / 2;
-    complex<double>* evens = values;
-    complex<double>* odds = values + half_count;
+    complex<double>* values;
+    uint64_t count;
+    unsigned int depth;
+    while (!async_ffts.empty()) {
+        tie(values, count, depth) = async_ffts.top();
+        async_ffts.pop();
 
-    // un thread pour chaque sous-fft
-    #pragma omp parallel num_threads(2)
-    {
-        if (omp_get_thread_num() % 2 == 0) {
-            fft_(evens, half_count, depth + 1);
+        const uint64_t half_count = count / 2;
+        complex<double>* evens = values;
+        complex<double>* odds = values + half_count;
+
+        if (pow(2, depth) < threads_count_) {
+            async_ffts.emplace(evens, half_count, depth + 1);
+            async_ffts.emplace(odds, half_count, depth + 1);
         } else {
-            fft_(odds, half_count, depth + 1);
+            #ifdef OMP
+                parallel_ffts.emplace_back([this, evens, half_count, depth] {
+                    this->fft_(evens, half_count, depth + 1);
+                });
+                parallel_ffts.emplace_back([this, odds, half_count, depth] {
+                    this->fft_(odds, half_count, depth + 1);
+                });
+            #else
+                parallel_ffts.emplace_back(&FFT::fft_, this, evens, half_count, depth + 1);
+                parallel_ffts.emplace_back(&FFT::fft_, this, odds, half_count, depth + 1);
+            #endif
         }
-    }
 
-    // un seul thread pour les butterflies
-    unsigned int twiddle_index_multiplier = 1 << depth;           
-    complex<double> even, odd, twiddle;
-    for (uint64_t k = 0; k < half_count; k++) {
-        even = evens[k];
-        odd = odds[k];
-        twiddle = twiddles_[k * twiddle_index_multiplier];
-
-        evens[k] = even + twiddle * odd;
-        odds[k] = even - twiddle * odd;
-    }
-}
-
-#elif defined THREAD
-
-// TODO use iterative algorithm instead of recursivity
-/*void FFT::threaded_fft_() {
-    const uint64_t half_count = complexes_count_ / 2;
-    complex<double>* evens = complexes_;
-    complex<double>* odds = complexes_ + half_count;
-
-    for (int i = 0; i < ; i++) {
-        // stacks butterflies computations to be done into closures, with all needed context
-        async_stack_.emplace_back([this, evens, odds, half_count, depth] {
+        // stack butterflies computations to be done into closures, with all needed context,
+        // to handle them when threads are done
+        async_butterflies.emplace_back([this, evens, odds, half_count, depth] {
             unsigned int twiddle_index_multiplier = 1 << depth;
             complex<double> even, odd, twiddle;
 
@@ -205,84 +223,25 @@ void FFT::omp_fft_(complex<double>* values, uint64_t count, unsigned int depth) 
                 odds[k] = even - twiddle * odd;
             }
         });
-
-        evens_threads_.emplace_back(&FFT::fft_, this, evens, half_count, depth + 1);
-        odds_threads_.emplace_back(&FFT::fft_, this, odds, half_count, depth + 1);
     }
 
-    for (int i = 0; i < evens_threads_.size(); i++) {
-        evens_threads_[i].join();
-        odds_threads_[i].join();
-    }
-    evens_threads_.clear();
-    odds_threads_.clear();
-
-    while (async_stack_.size() > 0) {
-        async_stack_.back()();
-        async_stack_.pop_back();
-    }
-}*/
-
-
-void FFT::threaded_fft_(complex<double>* values, uint64_t count, unsigned int depth) {
-    assert(IS_POWER_OF_2(count));
-
-    const uint64_t half_count = count / 2;
-    complex<double>* evens = values;
-    complex<double>* odds = values + half_count;
-
-    for (unsigned int i = 0; i < threads_count_; i++) {
-    if (pow(2, depth) == threads_count_) {
-        async_stack_.emplace_back([this, evens, odds, half_count, depth] {
-            unsigned int twiddle_index_multiplier = 1 << depth;
-            complex<double> even, odd, twiddle;
-
-            for (uint64_t k = 0; k < half_count; k++) {
-                even = evens[k];
-                odd = odds[k];
-                twiddle = twiddles_[k * twiddle_index_multiplier];
-
-                evens[k] = even + twiddle * odd;
-                odds[k] = even - twiddle * odd;
-            }
-        });
-
-        evens_threads_.emplace_back(&FFT::fft_, this, evens, half_count, depth + 1);
-        odds_threads_.emplace_back(&FFT::fft_, this, odds, half_count, depth + 1);
-    } else {
-        // stacks butterflies computations to be done into closures, with all needed context
-        // NB: must be stacked BEFORE recursive calls...
-        async_stack_.emplace_back([this, evens, odds, half_count, depth] {
-            unsigned int twiddle_index_multiplier = 1 << depth;
-            complex<double> even, odd, twiddle;
-
-            for (uint64_t k = 0; k < half_count; k++) {
-                even = evens[k];
-                odd = odds[k];
-                twiddle = twiddles_[k * twiddle_index_multiplier];
-
-                evens[k] = even + twiddle * odd;
-                odds[k] = even - twiddle * odd;
-            }
-        });
-
-        threaded_fft_(evens, half_count, depth + 1);
-        threaded_fft_(odds, half_count, depth + 1);
-    }
-
-    if (depth == 1) {
-        assert(evens_threads_.size() == odds_threads_.size());
-        for (int i = 0; i < evens_threads_.size(); i++) {
-            evens_threads_[i].join();
-            odds_threads_[i].join();
+    #ifdef OMP
+        #pragma omp parallel for
+        // TODO nicer iter
+        for (int i = 0; i < parallel_ffts.size(); i++) {
+            parallel_ffts[i]();
         }
-        evens_threads_.clear();
-        odds_threads_.clear();
-
-        while (async_stack_.size() > 0) {
-            async_stack_.back()();
-            async_stack_.pop_back();
+    #else
+        // TODO nicer iter
+        for (int i = 0; i < parallel_ffts.size(); i++) {
+            parallel_ffts[i].join();
         }
+    #endif
+
+    // perform butterflies in inner to outer order
+    while (!async_butterflies.empty()) {
+        async_butterflies.back()();
+        async_butterflies.pop_back();
     }
 }
 
