@@ -1,6 +1,6 @@
+#include "wave_reader.hpp"
 #include <cassert>
 #include <iostream>
-#include "wave_reader.hpp"
 
 using namespace std;
 
@@ -19,13 +19,13 @@ struct WaveHeader {
     uint32_t byte_rate;
     uint16_t block_align; // 1 * 16 / 8
     uint16_t bit_depth; // 16
-     
+
     char data_id[4]; // "data"
     uint32_t data_size;
 };
 
 WaveReader::WaveReader(string filename) :
-ifs_(filename,  ios::in | ios::binary) {
+    ifs_(filename, ios::in | ios::binary) {
     if (!ifs_.is_open()) {
         cerr << "cannot open file \"" << filename << "\"" << endl;
         exit(1);
@@ -60,9 +60,9 @@ ifs_(filename,  ios::in | ios::binary) {
 
     ifs_.read((char*) &header.data_id, sizeof(header.data_id));
     ifs_.read((char*) &header.data_size, sizeof(header.data_size));
-    
+
     count = 0;
-    while (header.data_id[0] != 'd' && count < 5) { // skip until data
+    while (header.data_id[0] != 'd' && count < 5) { // skip until data chunk
         ifs_.seekg((streamoff) header.data_size, ios::cur);
         ifs_.read((char*) &header.data_id, sizeof(header.data_id));
         ifs_.read((char*) &header.data_size, sizeof(header.data_size));
@@ -71,12 +71,11 @@ ifs_(filename,  ios::in | ios::binary) {
 
     data_end_ = (uint64_t) ifs_.tellg() + header.data_size;
     samples_count_ = (uint64_t) header.data_size * 8 / header.bit_depth;
-
 }
 
 void WaveReader::read_samples(double* buffer, uint64_t buffer_size) {
     assert(ifs_.is_open());
-    
+
     int16_t* int_buffer = new int16_t[buffer_size];
     streamsize read_size = 2 * buffer_size;
     assert(ifs_.tellg() + (streamsize) read_size <= data_end_);
