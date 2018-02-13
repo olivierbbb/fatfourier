@@ -1,54 +1,53 @@
 #include <cassert>
+
 #if defined(OMP) || defined(THREADED)
-    #include <stack>
-    #include <vector>
-    #include <functional>
+#include <functional>
+#include <stack>
+#include <vector>
 #endif
 #ifdef OMP
-    #include <omp.h>
+#include <omp.h>
 #elif defined(THREADED)
-    #include <thread>
+#include <thread>
 #endif
+
 #include "fft.hpp"
 
-#define IS_POWER_OF_2(x) (((x) & ((x) - 1)) == 0)
+#define IS_POWER_OF_2(x) (((x) & ((x) -1)) == 0)
 
 using namespace std;
 
 FFT::FFT(double* in_buffer, double* out_buffer, uint64_t buffer_size) :
-    in_buffer_(in_buffer),
-    out_buffer_(out_buffer),
-    buffer_size_(buffer_size),
+    in_buffer_(in_buffer), out_buffer_(out_buffer), buffer_size_(buffer_size),
     // cast real array to half-size complex array (they are binary-compatible)
     complexes_(reinterpret_cast<complex<double>*>(in_buffer)),
-    complexes_count_(buffer_size / 2)
-{
+    complexes_count_(buffer_size / 2) {
     assert(IS_POWER_OF_2(buffer_size));
 
-    #ifdef THREADED
-        #ifdef THREADS_COUNT
-            assert(IS_POWER_OF_2(THREADS_COUNT));
-            threads_count_ = THREADS_COUNT;
-        #else
-            threads_count_ = thread::hardware_concurrency();
-            threads_count_ = pow(2, log2(threads_count_));
-        #endif
-    #elif defined (OMP)
-        #ifdef THREADS_COUNT
-            assert(IS_POWER_OF_2(THREADS_COUNT));
-            threads_count_ = THREADS_COUNT;
-        #else
-            threads_count_ = omp_get_num_procs();
-            threads_count_ = pow(2, log2(threads_count_));
-        #endif
-        omp_set_num_threads(threads_count_);
-    #endif
+#ifdef THREADED
+#ifdef THREADS_COUNT
+    assert(IS_POWER_OF_2(THREADS_COUNT));
+    threads_count_ = THREADS_COUNT;
+#else
+    unsigned int cores_count_ = thread::hardware_concurrency();
+    threads_count_ = pow(2, log2(threads_count_));
+#endif
+#elif defined(OMP)
+#ifdef THREADS_COUNT
+    assert(IS_POWER_OF_2(THREADS_COUNT));
+    threads_count_ = THREADS_COUNT;
+#else
+    threads_count_ = omp_get_num_procs();
+    threads_count_ = pow(2, log2(threads_count_));
+#endif
+    omp_set_num_threads(threads_count_);
+#endif
 
     twiddles_ = new complex<double>[buffer_size / 2];
 
-    #ifdef OMP
-    #pragma omp parallel for
-    #endif
+#ifdef OMP
+#pragma omp parallel for
+#endif
     for (uint64_t k = 0; k < buffer_size / 2; k++) {
         twiddles_[k] = polar(1.0, -2.0 * M_PI * k / buffer_size);
     }
@@ -59,21 +58,18 @@ FFT::~FFT() {
 }
 
 /**
- * Cree une nouvelle serie de complexes a partir du buffer d'input
- * faite des valeurs aux index pairs en partie reelme et des valeurs aux index
- * impairs en partie imaginaire, et calcule la FFT de cette serie.
- * @see http://www.engineeringproductivitytools.com/stuff/T0001/PT10.HTM#Head574
- * About k == 0 et k == count / 2, @see http://processors.wiki.ti.com/index.php/Efficient_FFT_Computation_of_Real_Input
- */
+@see http://www.engineeringproductivitytools.com/stuff/T0001/PT10.HTM#Head574
+About k == 0 et k == count / 2, @see http://processors.wiki.ti.com/index.php/Efficient_FFT_Computation_of_Real_Input
+*/
 void FFT::compute() {
     bit_reverse_permute_buffer_();
 
-    #if defined(OMP) || defined(THREADED)
-        parallel_fft_();
-    #else
-        fft_(complexes_, complexes_count_);
-    #endif
-    
+#if defined(OMP) || defined(THREADED)
+    parallel_fft_();
+#else
+    fft_(complexes_, complexes_count_);
+#endif
+
     // Recompute real values from complex values
     // (we are not interested in the second half of real values)
     complex<double> even, odd, twiddle, result;
@@ -101,9 +97,9 @@ void FFT::compute() {
 }
 
 /**
- * Compute fft of @p values serie of length @p count, storing results in-place in @p values
- * @p depth: recursivity depth (used to retrieve twiddle factor)
- */
+Compute fft of @p values serie of length @p count, storing results in-place in @p values
+@p depth: recursivity depth (used to retrieve twiddle factor)
+*/
 void FFT::fft_(complex<double>* values, uint64_t count, unsigned int depth) {
     assert(IS_POWER_OF_2(count));
 
@@ -117,7 +113,7 @@ void FFT::fft_(complex<double>* values, uint64_t count, unsigned int depth) {
 
     fft_(evens, half_count, depth + 1);
     fft_(odds, half_count, depth + 1);
-    
+
     // locating twiddle factor with depth
     unsigned int twiddle_index_multiplier = 1 << depth;
     complex<double> even, odd, twiddle;
@@ -132,11 +128,11 @@ void FFT::fft_(complex<double>* values, uint64_t count, unsigned int depth) {
 }
 
 /**
- * @returns @p bit_length first bits of @p value mirror-reversed
- * @see https://graphics.stanford.edu/~seander/bithacks.html#BitReverseObvious
- */
+@returns @p bit_length first bits of @p value mirror-reversed
+@see https://graphics.stanford.edu/~seander/bithacks.html#BitReverseObvious
+*/
 static uint64_t reverse_bits(uint64_t value, unsigned int bit_length) {
-    uint64_t reversed = value & 1; 
+    uint64_t reversed = value & 1;
     unsigned int shift = bit_length - 1;
     for (value >>= 1; value; value >>= 1) {
         reversed <<= 1;
@@ -146,18 +142,16 @@ static uint64_t reverse_bits(uint64_t value, unsigned int bit_length) {
     return reversed << shift;
 }
 
-/**
- * Performs in place bit reversal permutation on @p buffer
- */
+/** Performs in place bit reversal permutation on @p buffer */
 void FFT::bit_reverse_permute_buffer_() {
-    complex<double> swap;
-    uint64_t reversed_k;
     const unsigned int bit_length = log2(complexes_count_);
 
-    #ifdef OMP
-    //TODO why not ? #pragma omp parallel for
-    #endif
+#ifdef OMP
+#pragma omp parallel for
+#endif
     for (uint64_t k = 0; k < complexes_count_; k++) {
+        complex<double> swap;
+        uint64_t reversed_k;
         reversed_k = reverse_bits(k, bit_length);
         if (reversed_k > k) { // dont swap twice
             swap = complexes_[k];
@@ -169,12 +163,12 @@ void FFT::bit_reverse_permute_buffer_() {
 
 #if defined(OMP) || defined(THREADED)
 
-void FFT::parallel_fft_() {    
-    #ifdef OMP
-        vector<function<void()>> parallel_ffts;
-    #else
-        vector<thread> parallel_ffts;
-    #endif
+void FFT::parallel_fft_() {
+#ifdef OMP
+    vector<function<void()>> parallel_ffts;
+#else
+    vector<thread> parallel_ffts;
+#endif
 
     stack<tuple<complex<double>*, uint64_t, unsigned int>> async_ffts;
     vector<function<void()>> async_butterflies;
@@ -195,17 +189,17 @@ void FFT::parallel_fft_() {
             async_ffts.emplace(evens, half_count, depth + 1);
             async_ffts.emplace(odds, half_count, depth + 1);
         } else {
-            #ifdef OMP
-                parallel_ffts.emplace_back([this, evens, half_count, depth] {
-                    this->fft_(evens, half_count, depth + 1);
-                });
-                parallel_ffts.emplace_back([this, odds, half_count, depth] {
-                    this->fft_(odds, half_count, depth + 1);
-                });
-            #else
-                parallel_ffts.emplace_back(&FFT::fft_, this, evens, half_count, depth + 1);
-                parallel_ffts.emplace_back(&FFT::fft_, this, odds, half_count, depth + 1);
-            #endif
+#ifdef OMP
+            parallel_ffts.emplace_back([this, evens, half_count, depth] {
+                this->fft_(evens, half_count, depth + 1);
+            });
+            parallel_ffts.emplace_back([this, odds, half_count, depth] {
+                this->fft_(odds, half_count, depth + 1);
+            });
+#else
+            parallel_ffts.emplace_back(&FFT::fft_, this, evens, half_count, depth + 1);
+            parallel_ffts.emplace_back(&FFT::fft_, this, odds, half_count, depth + 1);
+#endif
         }
 
         // stack butterflies computations to be done into closures, with all needed context,
@@ -225,18 +219,18 @@ void FFT::parallel_fft_() {
         });
     }
 
-    #ifdef OMP
-        #pragma omp parallel for
-        // TODO nicer iter
-        for (int i = 0; i < parallel_ffts.size(); i++) {
-            parallel_ffts[i]();
-        }
-    #else
-        // TODO nicer iter
-        for (int i = 0; i < parallel_ffts.size(); i++) {
-            parallel_ffts[i].join();
-        }
-    #endif
+#ifdef OMP
+#pragma omp parallel for
+    // TODO nicer iter
+    for (int i = 0; i < parallel_ffts.size(); i++) {
+        parallel_ffts[i]();
+    }
+#else
+    // TODO nicer iter
+    for (int i = 0; i < parallel_ffts.size(); i++) {
+        parallel_ffts[i].join();
+    }
+#endif
 
     // perform butterflies in inner to outer order
     while (!async_butterflies.empty()) {
