@@ -3,7 +3,11 @@ LD = $(CXX)
 CXXFLAGS = -std=c++14 -Wall -Wextra -Wno-sign-compare
 CXXFLAGS_DBG = -g -DEBUG -DCHECK_WITH_FFTW
 CXXFLAGS_RLS = -O3 -DNDEBUG
-CXXFLAGS += $(CXXFLAGS_DBG)
+ifeq ($(DEBUG), 1)
+	CXXFLAGS += $(CXXFLAGS_DBG)
+else
+	CXXFLAGS += $(CXXFLAGS_RLS)
+endif
 LDFLAGS = -lm -lfftw3
 
 SRC_DIR = src
@@ -39,7 +43,7 @@ $(BIN_DIR)/fatfourier_threaded_8: $(HEADER_FILES) $(SRC_FILES)
 
 $(BIN_DIR)/fatfourier_threaded_auto: $(HEADER_FILES) $(SRC_FILES)
 	@mkdir -p $(@D)
-	$(CXX) $(CXXFLAGS) -DTHREADED -pthread $(SRC_FILES) -o $@ $(LDFLAGS) 
+	$(CXX) $(CXXFLAGS) -DTHREADED -pthread $(SRC_FILES) -o $@ $(LDFLAGS)
 
 $(BIN_DIR)/fatfourier_fftw: $(HEADER_FILES) $(SRC_FILES)
 	@mkdir -p $(@D)
