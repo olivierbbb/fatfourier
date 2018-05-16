@@ -1,53 +1,55 @@
+DEBUG = 0
+
+ifeq ($(shell pkg-config --exists fftw3 && echo 1), 1)
+HAS_FFTW = 1
+else
+HAS_FFTW = 0
+endif
+
+DEMO_TARGETS = bin/benchmark_ff bin/benchmark_ff_omp
+ifeq ($(HAS_FFTW), 1)
+	 DEMO_TARGETS += bin/benchmark_fftw
+endif
+
 CXX = g++
 LD = $(CXX)
-CXXFLAGS = -std=c++14 -Wall -Wextra -Wno-sign-compare
-CXXFLAGS_DBG = -g -DEBUG -DCHECK_WITH_FFTW
-CXXFLAGS_RLS = -O3 -DNDEBUG
-ifeq ($(DEBUG), 1)
-	CXXFLAGS += $(CXXFLAGS_DBG)
-else
-	CXXFLAGS += $(CXXFLAGS_RLS)
+CXXFLAGS = -std=c++14 -Wall -Wextra -Wno-sign-compare -Isrc/
+LDFLAGS = -lm
+ifeq ($(HAS_FFTW), 1)
+CFLAGS += $(shell pkg-config --clfags fftw3)
+LDFLAGS += $(shell pkg-config --libs fftw3)
 endif
-LDFLAGS = -lm -lfftw3
 
-SRC_DIR = src
-SRC_FILES = $(wildcard $(SRC_DIR)/*.cpp)
-HEADER_FILES = $(wildcard $(SRC_DIR)/*.hpp)
-BIN_DIR = bin
+ifeq ($(DEBUG), 1)
+CXXFLAGS += -g -DEBUG
+ifeq ($(HAS_FFTW), 1)
+CXXFLAGS += -DCHECK_WITH_FFTW
+endif
+else
+CXXFLAGS += -O3 -DNDEBUG
+endif
+
+LIB_SRCS = $(wildcard src/*.cpp)
+LIBS_HEADERS = $(wildcard src/*.hpp)
+DEMO_SRCS = $(wildcard demo/*.cpp)
 
 .PHONY: all clean
 
-all: $(BIN_DIR)/fatfourier \
-$(BIN_DIR)/fatfourier_omp $(BIN_DIR)/fatfourier_threaded_2 $(BIN_DIR)/fatfourier_threaded_4 \
-$(BIN_DIR)/fatfourier_threaded_auto $(BIN_DIR)/fatfourier_fftw
+all: demo
 
-$(BIN_DIR)/fatfourier: $(HEADER_FILES) $(SRC_FILES)
-	@mkdir -p $(@D)
-	$(CXX) $(CXXFLAGS) $(SRC_FILES) -o $@ $(LDFLAGS)
+demo: $(DEMO_TARGETS)
 
-$(BIN_DIR)/fatfourier_omp: $(HEADER_FILES) $(SRC_FILES)
+bin/benchmark_ff: $(LIBS_HEADERS) $(LIB_SRCS) $(DEMO_SRCS)
 	@mkdir -p $(@D)
-	$(CXX) $(CXXFLAGS) -DOMP $(SRC_FILES) -o $@ $(LDFLAGS) -fopenmp
+	$(CXX) $(CXXFLAGS) -pthread $(LIB_SRCS) $(DEMO_SRCS) -o $@ $(LDFLAGS)
 
-$(BIN_DIR)/fatfourier_threaded_2: $(HEADER_FILES) $(SRC_FILES)
+bin/benchmark_ff_omp: $(LIBS_HEADERS) $(LIB_SRCS) $(DEMO_SRCS)
 	@mkdir -p $(@D)
-	$(CXX) $(CXXFLAGS) -DTHREADED -DTHREADS_COUNT=2 -pthread $(SRC_FILES) -o $@ $(LDFLAGS)
+	$(CXX) $(CXXFLAGS) -DOMP $(LIB_SRCS) $(DEMO_SRCS) -o $@ $(LDFLAGS) -fopenmp
 
-$(BIN_DIR)/fatfourier_threaded_4: $(HEADER_FILES) $(SRC_FILES)
+bin/benchmark_fftw: $(LIBS_HEADERS) $(LIB_SRCS) $(DEMO_SRCS)
 	@mkdir -p $(@D)
-	$(CXX) $(CXXFLAGS) -DTHREADED -DTHREADS_COUNT=4 -pthread $(SRC_FILES) -o $@ $(LDFLAGS)
-
-$(BIN_DIR)/fatfourier_threaded_8: $(HEADER_FILES) $(SRC_FILES)
-	@mkdir -p $(@D)
-	$(CXX) $(CXXFLAGS) -DTHREADED -DTHREADS_COUNT=4 -pthread $(SRC_FILES) -o $@ $(LDFLAGS)
-
-$(BIN_DIR)/fatfourier_threaded_auto: $(HEADER_FILES) $(SRC_FILES)
-	@mkdir -p $(@D)
-	$(CXX) $(CXXFLAGS) -DTHREADED -pthread $(SRC_FILES) -o $@ $(LDFLAGS)
-
-$(BIN_DIR)/fatfourier_fftw: $(HEADER_FILES) $(SRC_FILES)
-	@mkdir -p $(@D)
-	$(CXX) $(CXXFLAGS) -DFFTW_SEQ $(SRC_FILES) -o $@ $(LDFLAGS)
+	$(CXX) $(CXXFLAGS) -DUSE_FFTW $(DEMO_SRCS) -o $@ $(LDFLAGS)
 
 clean:
-	$(RM) $(BIN_DIR)/*
+	$(RM) bin/*
