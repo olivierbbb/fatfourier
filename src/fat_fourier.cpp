@@ -16,11 +16,13 @@
 
 using namespace std;
 
-FatFourier::FatFourier(double* in_buffer, double* out_buffer, uint64_t buffer_size) :
-    in_buffer_(in_buffer), out_buffer_(out_buffer), buffer_size_(buffer_size),
+FatFourier::FatFourier(double* in_buffer, double* out_buffer, uint64_t buffer_size)
+    : in_buffer_(in_buffer)
+    , out_buffer_(out_buffer)
+    , buffer_size_(buffer_size)
     // cast real array to half-size complex array (they are binary-compatible)
-    complexes_(reinterpret_cast<complex<double>*>(in_buffer)),
-    complexes_count_(buffer_size / 2) {
+    , complexes_(reinterpret_cast<complex<double>*>(in_buffer))
+    , complexes_count_(buffer_size / 2) {
     if (!IS_POWER_OF_2(buffer_size)) {
         cerr << "Buffer size must be power of 2" << endl;
         exit(EXIT_FAILURE);
@@ -55,8 +57,7 @@ void FatFourier::compute(unsigned int threads_count) {
         unsigned int procs_count = thread::hardware_concurrency();
         // floor to power of 2
         threads_count = pow(2, log2(procs_count));
-    }
-    else if (!IS_POWER_OF_2(threads_count)) {
+    } else if (!IS_POWER_OF_2(threads_count)) {
         cerr << "Number of threads must be power of 2" << endl;
         exit(EXIT_FAILURE);
     }

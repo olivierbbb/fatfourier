@@ -17,46 +17,46 @@
 
 using namespace std;
 #if !defined(OMP) && !defined(USE_FFTW)
-    #define THREADS_COUNT_OPT
+#define THREADS_COUNT_OPT
 #endif
 
 void usage(string exec_name) {
-    #ifdef THREADS_COUNT_OPT
+#ifdef THREADS_COUNT_OPT
     cerr << "Usage: " << exec_name << " -l <length>\n";
-    #else
+#else
     cerr << "Usage: " << exec_name << " -l <length> [-t <nb_threads>]\n";
-    #endif
+#endif
     cerr << "Required:\n";
     cerr << "  -l <length>\t\tpower of two of the computed sequence length\n";
-    #ifdef THREADS_COUNT_OPT
+#ifdef THREADS_COUNT_OPT
     cerr << "Options:\n";
     cerr << "  -t <nb_threads>\t\tnumber of threads to spawn [default: auto]\n";
-    #endif
+#endif
 }
 
 int main(int argc, char* argv[]) {
     int seq_length = -1;
-    #ifdef THREADS_COUNT_OPT
-        int threads_count = -1;
-    #endif
+#ifdef THREADS_COUNT_OPT
+    int threads_count = -1;
+#endif
 
     char opt;
-    #ifdef THREADS_COUNT_OPT
+#ifdef THREADS_COUNT_OPT
     char const* opt_list = "l:t:";
-    #else
+#else
     char const* opt_list = "l:";
-    #endif
+#endif
 
     while ((opt = getopt(argc, argv, opt_list)) != -1) {
         switch (opt) {
         case 'l':
             seq_length = atoi(optarg);
             break;
-        #ifdef THREADS_COUNT_OPT
+#ifdef THREADS_COUNT_OPT
         case 't':
             threads_count = atoi(optarg);
             break;
-        #endif
+#endif
         default:
             usage(argv[0]);
             exit(EXIT_FAILURE);

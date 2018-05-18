@@ -5,9 +5,10 @@ import os
 import sys
 
 MIN_LENGTH = 20
-MAX_LENGTH = 21
+MAX_LENGTH = 28
 
 def iter_on_cmd(cmd):
+    print('Running ' + cmd + '...')
     for i in range(MIN_LENGTH, MAX_LENGTH):
         full_cmd = cmd + " -l " + str(i)
         print(full_cmd)
