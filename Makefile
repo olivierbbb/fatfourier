@@ -29,8 +29,8 @@ else
 CXXFLAGS += -O3 -DNDEBUG
 endif
 
-LIB_SRCS = $(wildcard src/*.cpp)
-LIBS_HEADERS = $(wildcard src/*.hpp)
+SRCS = $(wildcard src/*.cpp)
+HEADERS = $(wildcard src/*.hpp)
 DEMO_SRCS = $(wildcard demo/*.cpp)
 
 .PHONY: all clean
@@ -39,15 +39,15 @@ all: demo
 
 demo: $(DEMO_TARGETS)
 
-bin/benchmark_ff: $(LIBS_HEADERS) $(LIB_SRCS) $(DEMO_SRCS)
+bin/benchmark_ff: $(HEADERS) $(SRCS) $(DEMO_SRCS)
 	@mkdir -p $(@D)
-	$(CXX) $(CXXFLAGS) -pthread $(LIB_SRCS) $(DEMO_SRCS) -o $@ $(LDFLAGS)
+	$(CXX) $(CXXFLAGS) -pthread $(SRCS) $(DEMO_SRCS) -o $@ $(LDFLAGS)
 
-bin/benchmark_ff_omp: $(LIBS_HEADERS) $(LIB_SRCS) $(DEMO_SRCS)
+bin/benchmark_ff_omp: $(HEADERS) $(SRCS) $(DEMO_SRCS)
 	@mkdir -p $(@D)
-	$(CXX) $(CXXFLAGS) -DOMP $(LIB_SRCS) $(DEMO_SRCS) -o $@ $(LDFLAGS) -fopenmp
+	$(CXX) $(CXXFLAGS) -DOMP $(SRCS) $(DEMO_SRCS) -o $@ $(LDFLAGS) -fopenmp
 
-bin/benchmark_fftw: $(LIBS_HEADERS) $(LIB_SRCS) $(DEMO_SRCS)
+bin/benchmark_fftw: $(HEADERS) $(SRCS) $(DEMO_SRCS)
 	@mkdir -p $(@D)
 	$(CXX) $(CXXFLAGS) -DUSE_FFTW $(DEMO_SRCS) -o $@ $(LDFLAGS)
 
