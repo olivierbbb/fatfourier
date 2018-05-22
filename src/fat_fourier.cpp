@@ -1,16 +1,15 @@
+#include "fat_fourier.hpp"
 #include <cassert>
-#include <iostream>
-
 #include <functional>
+#include <iostream>
 #include <stack>
 #include <vector>
+
 #ifdef OMP
 #include <omp.h>
 #else
 #include <thread>
 #endif
-
-#include "fat_fourier.hpp"
 
 #define IS_POWER_OF_2(x) (((x) & ((x) -1)) == 0)
 

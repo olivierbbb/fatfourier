@@ -1,5 +1,4 @@
 #pragma once
-
 #include <complex>
 #include <cstdint>
 
