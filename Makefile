@@ -1,55 +1,60 @@
 DEBUG = 0
 
-ifeq ($(shell pkg-config --exists fftw3 && echo 1), 1)
-HAS_FFTW = 1
-else
-HAS_FFTW = 0
-endif
-
-DEMO_TARGETS = bin/benchmark_ff bin/benchmark_ff_omp
-ifeq ($(HAS_FFTW), 1)
-	 DEMO_TARGETS += bin/benchmark_fftw
-endif
+PACKAGE = fat_fourier
+LIB_TARGET = build/lib$(PACKAGE).so
+DEMO_TARGETS = build/benchmark
 
 CXX = g++
 LD = $(CXX)
-CXXFLAGS = -std=c++14 -Wall -Wextra -Wno-sign-compare -Isrc/
-LDFLAGS = -lm
-ifeq ($(HAS_FFTW), 1)
-CFLAGS += $(shell pkg-config --clfags fftw3)
-LDFLAGS += $(shell pkg-config --libs fftw3)
-endif
+CXXFLAGS = -std=c++14 -Wall -Wextra -Iinclude
+LDFLAGS =
 
 ifeq ($(DEBUG), 1)
 CXXFLAGS += -g -DEBUG
-ifeq ($(HAS_FFTW), 1)
-CXXFLAGS += -DCHECK_WITH_FFTW
-endif
 else
-CXXFLAGS += -O3 -DNDEBUG
+CXXFLAGS += -O2 -DNDEBUG
 endif
 
-SRCS = $(wildcard src/*.cpp)
-HEADERS = $(wildcard src/*.hpp)
+LIB_CXXFLAGS = -fPIC
+LIB_LDFLAGS = -lm
+
+DEMO_CXXFLAGS += $(shell pkg-config --cflags fftw3)
+DEMO_LDFLAGS += $(shell pkg-config --libs fftw3)
+
+LIB_SRCS = $(wildcard src/*.cpp)
+LIB_OBJS = $(patsubst src/%.cpp, build/lib/%.o, $(LIB_SRCS))
+LIB_DEPS = $(wildcard build/deps/lib/*.d)
 DEMO_SRCS = $(wildcard demo/*.cpp)
+DEMO_DEPS = $(wildcard build/deps/demo/*.d)
 
-.PHONY: all clean
+.PHONY: all lib demo clean
 
-all: demo
+all: lib demo
+
+lib: $(LIB_TARGET)
 
 demo: $(DEMO_TARGETS)
 
-bin/benchmark_ff: $(HEADERS) $(SRCS) $(DEMO_SRCS)
+build/lib$(PACKAGE).so: $(LIB_OBJS)
 	@mkdir -p $(@D)
-	$(CXX) $(CXXFLAGS) -pthread $(SRCS) $(DEMO_SRCS) -o $@ $(LDFLAGS)
+	$(LD) -shared $^ -o $@ $(LDFLAGS) $(LIB_LDFLAGS)
 
-bin/benchmark_ff_omp: $(HEADERS) $(SRCS) $(DEMO_SRCS)
+build/%: build/demo/%.o $(LIB_OBJS)
 	@mkdir -p $(@D)
-	$(CXX) $(CXXFLAGS) -DOMP $(SRCS) $(DEMO_SRCS) -o $@ $(LDFLAGS) -fopenmp
+	$(LD) -o $@ $^ $(LDFLAGS) $(DEMO_LDFLAGS)
 
-bin/benchmark_fftw: $(HEADERS) $(SRCS) $(DEMO_SRCS)
-	@mkdir -p $(@D)
-	$(CXX) $(CXXFLAGS) -DUSE_FFTW $(DEMO_SRCS) -o $@ $(LDFLAGS)
+build/lib/%.o: src/%.cpp
+	@mkdir -p $(@D) build/deps/lib
+	$(CXX) $(CXXFLAGS) $(LIB_CXXFLAGS) -MMD -MF build/deps/lib/$*.d -c -o $@ $<
+
+build/demo/%.o: demo/%.cpp $(LIB_OBJS)
+	@mkdir -p $(@D) build/deps/demo
+	$(CXX) $(CXXFLAGS) $(DEMO_CXXFLAGS) -MMD -MF build/deps/demo/$*.d -c -o $@ $<
+
+ifneq ($(MAKECMDGOALS), clean)
+-include $(LIB_DEPS)
+-include $(DEMO_DEPS)
+endif
 
 clean:
-	$(RM) bin/*
+	$(RM) -r build/*

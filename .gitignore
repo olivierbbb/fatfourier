@@ -1,7 +1,4 @@
-obj/
-bin
-lib
-.d
+build/
 *.sublime-project
 *.sublime-workspace
 .gdb_history
