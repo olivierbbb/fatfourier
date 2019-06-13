@@ -1,6 +1,6 @@
 ## Sluggishly computing your FFTs since 2017
 
-This SSE-less, SSE-less, AVX-less, AVX2-less FFT will happily compute whatever you input it, be it complex or real, as long as it has a size of 2**n. It uses a radix-2 Cooley–Tukey algorithm and it is thread-safe. Because sluggish doesn't mean lazy, this FFT tries its best at implementing some of the optimizations described in [The FFT Demystified][2].
+This SSE-less, SSE-less, AVX-less, AVX2-less FFT will happily compute the frequency representation of whatever time series you input it, be it complex or real, as long as it has a size of 2ⁿ. It uses a radix-2 Cooley–Tukey algorithm and it is thread-safe. Because sluggish doesn't mean lazy, this FFT tries its best at implementing some of the optimizations described in [The FFT Demystified][2].
 
 [2]: http://www.engineeringproductivitytools.com/stuff/T0001/index.html
 
